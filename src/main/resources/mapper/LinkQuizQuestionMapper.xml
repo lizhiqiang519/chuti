@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.tencent.wxcloudrun.mapper.LinkQuizQuestionMapper">
+
+    <resultMap id="LinkQuizQuestionResultMap" type="com.tencent.wxcloudrun.model.LinkQuizQuestion">
+        <id property="id" column="id"/>
+        <result property="linkQuestion" column="link_question"/>
+        <result property="linkOptionA" column="link_option_a"/>
+        <result property="linkOptionB" column="link_option_b"/>
+        <result property="linkOptionC" column="link_option_c"/>
+        <result property="linkOptionD" column="link_option_d"/>
+        <result property="linkAnswer" column="link_answer"/>
+        <result property="linkExplanation" column="link_explanation"/>
+        <result property="link" column="link"/>
+        <result property="linkPrompt" column="link_prompt"/>
+        <result property="linkSummary" column="link_summary"/>
+    </resultMap>
+
+    <select id="findById" resultMap="LinkQuizQuestionResultMap">
+        SELECT * FROM link_quiz_question WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.tencent.wxcloudrun.model.LinkQuizQuestion">
+        INSERT INTO link_quiz_question (
+        link_question, link_option_a, link_option_b, link_option_c, link_option_d,
+        link_answer, link_explanation, link, link_prompt, link_summary
+        ) VALUES (
+        #{linkQuestion}, #{linkOptionA}, #{linkOptionB}, #{linkOptionC}, #{linkOptionD},
+        #{linkAnswer}, #{linkExplanation}, #{link}, #{linkPrompt}, #{linkSummary}
+        )
+        <selectKey keyProperty="id" order="AFTER" resultType="int">
+            SELECT LAST_INSERT_ID()
+        </selectKey>
+    </insert>
+
+</mapper>
