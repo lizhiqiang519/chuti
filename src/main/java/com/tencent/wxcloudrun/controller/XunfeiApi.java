@@ -4,7 +4,13 @@ package com.tencent.wxcloudrun.controller;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.tencent.wxcloudrun.service.LinkQuizQuestionService;
 import okhttp3.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +24,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api")
@@ -30,13 +38,25 @@ public class XunfeiApi {
     private final OkHttpClient client = new OkHttpClient.Builder().build();
     private final Gson gson = new Gson();
 
+    @Autowired
+    private LinkQuizQuestionService linkQuizQuestionService;
+
+    private static final Logger logger = LoggerFactory.getLogger(XunfeiApi.class);
+
     @PostMapping("/getResponse")
     public String getResponse(@RequestBody Map<String, String> requestBody) throws Exception {
-        String tishici = requestBody.get("tishici");
+
+        //传进来的提示词
+        String tishici = requestBody.get("tishici") ;
+//                "。请按照结构返回结果：list结构，里面是每道题目，每道题目的属性有这些：linkQuestion（选择题问题描述）、linkOptionA（选项A）、linkOptionB（选项B）、" +
+//                "linkOptionC（选项C）、linkOptionD（选项D）、linkAnswer（选择题答案）、linkExplanation（根据链接内容来回答的详细分析）、link（链接）、linkPrompt（提示词）、" +
+//                "linkSummary（链接内容总结）";
 
         if (tishici == null || tishici.isEmpty()) {
             return "Error: tishici field is required.";
         }
+
+        logger.info("开始处理请求，接收参数: {}", tishici);
 
         final StringBuilder responseContainer = new StringBuilder();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -56,9 +76,10 @@ public class XunfeiApi {
 
                     JSONObject parameter = new JSONObject();
                     JSONObject chat = new JSONObject();
-                    chat.put("domain", "generalv2");
-                    chat.put("temperature", 0.5);
-                    chat.put("max_tokens", 4096);
+                    chat.put("domain", "generalv3.5");
+                    chat.put("temperature", 0.2);
+                    chat.put("max_tokens", 8192);
+//                    chat.put("streaming", false);
                     parameter.put("chat", chat);
 
                     JSONObject payload = new JSONObject();
@@ -90,9 +111,11 @@ public class XunfeiApi {
                 JsonParse myJsonParse = gson.fromJson(text, JsonParse.class);
                 List<Text> textList = myJsonParse.payload.choices.text;
                 for (Text temp : textList) {
-                    responseContainer.append(temp.content);
+                    responseContainer.append(temp.getContent());
                 }
                 if (myJsonParse.header.status == 2) {
+                    logger.info("最终结果：{}",responseContainer);
+
                     latch.countDown();
                     webSocket.close(1000, null);
                 }
@@ -107,7 +130,7 @@ public class XunfeiApi {
 
         client.newWebSocket(request, listener);
 
-        latch.await(120, TimeUnit.SECONDS); // 等待响应完成，最多等待120秒
+        latch.await(100, TimeUnit.SECONDS); // 等待响应完成，最多等待120秒
 
         if (responseContainer.length() == 0) {
             return "Error: No response received within the timeout period.";
@@ -162,5 +185,24 @@ public class XunfeiApi {
     class Text {
         String role;
         String content;
+
+        public Text(String content) {
+            this.content = content;
+        }
+
+        // 假设的getContent方法，返回文本内容
+        public String getContent() {
+            return content;
+        }
+
+        public String getRole() {
+            return role;
+        }
+
+        public void setRole(String role) {
+            this.role = role;
+        }
     }
+
+
 }
