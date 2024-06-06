@@ -12,9 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -42,7 +41,13 @@ public class XunfeiApi {
 
     private static final Logger logger = LoggerFactory.getLogger(XunfeiApi.class);
 
-    @PostMapping(value = "/api/getResponse")
+    /**
+     * 提交到AI生成题目。链接出题
+     * @param requestBody
+     * @return
+     * @throws Exception
+     */
+    @PostMapping(value = "/api/submitLinkChuti")
     @Async
     public CompletableFuture<String> getResponse(@RequestBody Map<String, String> requestBody) throws Exception {
 
@@ -156,6 +161,23 @@ public class XunfeiApi {
 
         return future;
     }
+
+    /**
+     * 获取出题结果，链接出题
+     * @param requestBody
+     * @return
+     */
+    @PostMapping("/api/getLinkChutiResult")
+    public LinkUnhandleQuestion getLinkResult(@RequestBody Map<String, String> requestBody) {
+
+        String uuid = requestBody.get("uuid");
+        logger.info("getLinkChutiResult入参：{}",uuid);
+        LinkUnhandleQuestion retrievedQuestion = linkUnhandleQuestionService.getLinkUnhandleQuestionByUuid(uuid);
+        logger.info("getLinkChutiResult结果：{}",retrievedQuestion.toString());
+
+        return retrievedQuestion;
+    }
+
 
 
 //    @PostMapping(value = "/api/getResponse")
