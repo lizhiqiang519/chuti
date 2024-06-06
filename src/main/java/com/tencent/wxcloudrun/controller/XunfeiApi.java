@@ -4,16 +4,16 @@ package com.tencent.wxcloudrun.controller;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.tencent.wxcloudrun.service.LinkQuizQuestionService;
+import com.tencent.wxcloudrun.model.LinkUnhandleQuestion;
+import com.tencent.wxcloudrun.service.LinkUnhandleQuestionService;
 import okhttp3.*;
+import org.java_websocket.client.WebSocketClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.crypto.Mac;
@@ -22,10 +22,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @RestController
 //@RequestMapping("/api")
@@ -39,26 +38,27 @@ public class XunfeiApi {
     private final Gson gson = new Gson();
 
     @Autowired
-    private LinkQuizQuestionService linkQuizQuestionService;
+    private LinkUnhandleQuestionService linkUnhandleQuestionService;
 
     private static final Logger logger = LoggerFactory.getLogger(XunfeiApi.class);
 
     @PostMapping(value = "/api/getResponse")
-    public String getResponse(@RequestBody Map<String, String> requestBody) throws Exception {
+    @Async
+    public CompletableFuture<String> getResponse(@RequestBody Map<String, String> requestBody) throws Exception {
 
-        logger.info("getResponse入参:{}",requestBody);
-
-        //传进来的提示词
-        String tishici = "根据链接内容出题，从专业老师的角度生成5道单选题（每道题必须包含七个字段：问题描述、选项A、选项B、选项C、选项D、答案、分析）："+ requestBody.get("tishici") ;
-        String uuid =  requestBody.get("uuid");
+        logger.info("getResponse入参:{}", requestBody);
+        // 传进来的提示词
+        String tishici = "根据链接内容出题，从专业老师的角度生成5道单选题（每道题必须包含七个字段：问题描述、选项A、选项B、选项C、选项D、答案、分析）：" + requestBody.get("tishici");
+        String uuid = requestBody.get("uuid");
 
         if (tishici == null || tishici.isEmpty()) {
-            return "Error: tishici field is required.";
+            return CompletableFuture.completedFuture("Error: tishici field is required.");
         }
 
         logger.info("开始处理请求，接收参数tishici: {}", tishici);
         logger.info("开始处理请求，接收参数uuid: {}", uuid);
 
+        // 创建一个响应容器
         final StringBuilder responseContainer = new StringBuilder();
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -80,7 +80,6 @@ public class XunfeiApi {
                     chat.put("domain", "generalv3.5");
                     chat.put("temperature", 0.2);
                     chat.put("max_tokens", 8192);
-//                    chat.put("streaming", false);
                     parameter.put("chat", chat);
 
                     JSONObject payload = new JSONObject();
@@ -115,7 +114,16 @@ public class XunfeiApi {
                     responseContainer.append(temp.getContent());
                 }
                 if (myJsonParse.header.status == 2) {
-                    logger.info("最终结果：{}",responseContainer);
+                    logger.info("最终结果：{}", responseContainer);
+
+                    // 创建一个新的LinkUnhandleQuestion对象
+                    LinkUnhandleQuestion linkUnhandleQuestion = new LinkUnhandleQuestion();
+                    linkUnhandleQuestion.setUuid(uuid);
+                    linkUnhandleQuestion.setTishici(tishici);
+                    linkUnhandleQuestion.setResult(String.valueOf(responseContainer));
+                    linkUnhandleQuestion.setLink(requestBody.get("tishici"));
+                    // 新增记录
+                    linkUnhandleQuestionService.addLinkUnhandleQuestion(linkUnhandleQuestion);
 
                     latch.countDown();
                     webSocket.close(1000, null);
@@ -131,14 +139,132 @@ public class XunfeiApi {
 
         client.newWebSocket(request, listener);
 
-        latch.await(100, TimeUnit.SECONDS); // 等待响应完成，最多等待120秒
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+            try {
+                latch.await(100, TimeUnit.SECONDS); // 等待响应完成，最多等待100秒
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return "Error: Interrupted while waiting for response.";
+            }
 
-        if (responseContainer.length() == 0) {
-            return "Error: No response received within the timeout period.";
-        }
+            if (responseContainer.length() == 0) {
+                return "Error: No response received within the timeout period.";
+            }
 
-        return responseContainer.toString();
+            return responseContainer.toString();
+        });
+
+        return future;
     }
+
+
+//    @PostMapping(value = "/api/getResponse")
+//    public String getResponse(@RequestBody Map<String, String> requestBody) throws Exception {
+//
+//        logger.info("getResponse入参:{}",requestBody);
+//        //传进来的提示词
+//        String tishici = "根据链接内容出题，从专业老师的角度生成5道单选题（每道题必须包含七个字段：问题描述、选项A、选项B、选项C、选项D、答案、分析）："+ requestBody.get("tishici") ;
+//        String uuid =  requestBody.get("uuid");
+//
+//        if (tishici == null || tishici.isEmpty()) {
+//            return "Error: tishici field is required.";
+//        }
+//
+//        logger.info("开始处理请求，接收参数tishici: {}", tishici);
+//        logger.info("开始处理请求，接收参数uuid: {}", uuid);
+//
+//        // 根据UUID查询记录
+//        //LinkUnhandleQuestion retrievedQuestion = linkUnhandleQuestionService.getLinkUnhandleQuestionByUuid(uuid);
+//
+//        final StringBuilder responseContainer = new StringBuilder();
+//        final CountDownLatch latch = new CountDownLatch(1);
+//
+//        String authUrl = getAuthUrl(hostUrl, apiKey, apiSecret);
+//        String url = authUrl.replace("http://", "ws://").replace("https://", "wss://");
+//        Request request = new Request.Builder().url(url).build();
+//
+//        WebSocketListener listener = new WebSocketListener() {
+//            @Override
+//            public void onOpen(WebSocket webSocket, Response response) {
+//                try {
+//                    JSONObject requestJson = new JSONObject();
+//                    JSONObject header = new JSONObject();
+//                    header.put("app_id", appid);
+//                    header.put("uid", UUID.randomUUID().toString().substring(0, 10));
+//
+//                    JSONObject parameter = new JSONObject();
+//                    JSONObject chat = new JSONObject();
+//                    chat.put("domain", "generalv3.5");
+//                    chat.put("temperature", 0.2);
+//                    chat.put("max_tokens", 8192);
+////                    chat.put("streaming", false);
+//                    parameter.put("chat", chat);
+//
+//                    JSONObject payload = new JSONObject();
+//                    JSONObject message = new JSONObject();
+//                    JSONArray text = new JSONArray();
+//
+//                    JSONObject userMessage = new JSONObject();
+//                    userMessage.put("role", "user");
+//                    userMessage.put("content", tishici);
+//                    text.add(userMessage);
+//
+//                    message.put("text", text);
+//                    payload.put("message", message);
+//
+//                    requestJson.put("header", header);
+//                    requestJson.put("parameter", parameter);
+//                    requestJson.put("payload", payload);
+//
+//                    webSocket.send(requestJson.toString());
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                    latch.countDown();
+//                }
+//            }
+//
+//            @Override
+//            public void onMessage(WebSocket webSocket, String text) {
+//                System.out.println("Response: " + text);
+//                JsonParse myJsonParse = gson.fromJson(text, JsonParse.class);
+//                List<Text> textList = myJsonParse.payload.choices.text;
+//                for (Text temp : textList) {
+//                    responseContainer.append(temp.getContent());
+//                }
+//                if (myJsonParse.header.status == 2) {
+//                    logger.info("最终结果：{}",responseContainer);
+//
+//                    // 创建一个新的LinkUnhandleQuestion对象
+//                    LinkUnhandleQuestion linkUnhandleQuestion = new LinkUnhandleQuestion();
+//                    linkUnhandleQuestion.setUuid(uuid);
+//                    linkUnhandleQuestion.setTishici(tishici);
+//                    linkUnhandleQuestion.setResult(String.valueOf(responseContainer));
+//                    linkUnhandleQuestion.setLink(requestBody.get("tishici"));
+//                    // 新增记录
+//                    linkUnhandleQuestionService.addLinkUnhandleQuestion(linkUnhandleQuestion);
+//
+//                    latch.countDown();
+//                    webSocket.close(1000, null);
+//                }
+//            }
+//
+//            @Override
+//            public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+//                t.printStackTrace();
+//                latch.countDown();
+//            }
+//        };
+//
+//        client.newWebSocket(request, listener);
+//
+//        latch.await(100, TimeUnit.SECONDS); // 等待响应完成，最多等待120秒
+//
+//        if (responseContainer.length() == 0) {
+//            return "Error: No response received within the timeout period.";
+//        }
+//
+//        return responseContainer.toString();
+//    }
 
     private String getAuthUrl(String hostUrl, String apiKey, String apiSecret) throws Exception {
         URL url = new URL(hostUrl);
