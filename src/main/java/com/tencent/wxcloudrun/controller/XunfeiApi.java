@@ -53,7 +53,7 @@ public class XunfeiApi {
 
         logger.info("getResponse入参:{}", requestBody);
         // 传进来的提示词
-        String tishici = "根据链接内容出题，从专业老师的角度生成5道单选题（每道题必须包含七个字段：问题描述、选项A、选项B、选项C、选项D、答案、分析）：" + requestBody.get("tishici");
+        String tishici = "根据链接内容出题，从专业老师的角度生成6道单选题（每道题必须包含七个字段：问题描述、选项A、选项B、选项C、选项D、答案、分析）：" + requestBody.get("tishici");
         String uuid = requestBody.get("uuid");
 
         if (tishici == null || tishici.isEmpty()) {
