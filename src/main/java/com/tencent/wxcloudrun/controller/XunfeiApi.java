@@ -28,7 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RestController
-@RequestMapping("/api")
+//@RequestMapping("/api")
 public class XunfeiApi {
     private static final String hostUrl = "https://spark-api.xf-yun.com/v3.5/chat";
     private static final String appid = "1297070f";
@@ -43,7 +43,7 @@ public class XunfeiApi {
 
     private static final Logger logger = LoggerFactory.getLogger(XunfeiApi.class);
 
-    @PostMapping("/getResponse")
+    @PostMapping(value = "/api/getResponse")
     public String getResponse(@RequestBody Map<String, String> requestBody) throws Exception {
 
         //传进来的提示词
