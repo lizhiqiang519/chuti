@@ -46,17 +46,18 @@ public class XunfeiApi {
     @PostMapping(value = "/api/getResponse")
     public String getResponse(@RequestBody Map<String, String> requestBody) throws Exception {
 
+        logger.info("getResponse入参:{}",requestBody);
+
         //传进来的提示词
-        String tishici = requestBody.get("tishici") ;
-//                "。请按照结构返回结果：list结构，里面是每道题目，每道题目的属性有这些：linkQuestion（选择题问题描述）、linkOptionA（选项A）、linkOptionB（选项B）、" +
-//                "linkOptionC（选项C）、linkOptionD（选项D）、linkAnswer（选择题答案）、linkExplanation（根据链接内容来回答的详细分析）、link（链接）、linkPrompt（提示词）、" +
-//                "linkSummary（链接内容总结）";
+        String tishici = "根据链接内容出题，从专业老师的角度生成5道单选题（每道题必须包含七个字段：问题描述、选项A、选项B、选项C、选项D、答案、分析）："+ requestBody.get("tishici") ;
+        String uuid =  requestBody.get("uuid");
 
         if (tishici == null || tishici.isEmpty()) {
             return "Error: tishici field is required.";
         }
 
-        logger.info("开始处理请求，接收参数: {}", tishici);
+        logger.info("开始处理请求，接收参数tishici: {}", tishici);
+        logger.info("开始处理请求，接收参数uuid: {}", uuid);
 
         final StringBuilder responseContainer = new StringBuilder();
         final CountDownLatch latch = new CountDownLatch(1);
